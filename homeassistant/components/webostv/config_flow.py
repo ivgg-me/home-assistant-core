@@ -12,7 +12,6 @@ from websockets.exceptions import ConnectionClosed
 
 from homeassistant import config_entries
 from homeassistant.const import CONF_HOST, CONF_NAME
-from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 
 from . import NoStoreClient, convert_client_keys
@@ -24,37 +23,6 @@ PAIR_TIMEOUT = 60
 STEP_USER_DATA_SCHEMA = vol.Schema(
     {vol.Required(CONF_HOST): str, vol.Optional(CONF_NAME, default=DEFAULT_NAME): str}
 )
-
-
-async def validate_input(
-    hass: HomeAssistant, data: dict[str, Any], client: NoStoreClient
-) -> dict[str, Any]:
-    """Validate the user input allows us to connect.
-
-    Data has the keys from STEP_USER_DATA_SCHEMA with values provided by the user.
-    """
-    try:
-        async with timeout(PAIR_TIMEOUT):
-            await client.connect()
-            await client.disconnect()
-    except PyLGTVPairException:
-        _LOGGER.warning("Connected to LG webOS TV %s but not paired", client.ip)
-        raise InvalidAuth
-    except (
-        OSError,
-        ConnectionClosed,
-        ConnectionRefusedError,
-        asyncio.TimeoutError,
-        PyLGTVCmdException,
-    ):
-        _LOGGER.error("Unable to connect to host %s", client.ip)
-        raise CannotConnect
-
-    # Return info that you want to store in the config entry.
-    return {
-        CONF_NAME: data[CONF_NAME],
-        CONF_CLIENT_KEY: client.client_key,
-    }
 
 
 class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -77,13 +45,13 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 step_id="user", data_schema=STEP_USER_DATA_SCHEMA, errors=self.errors
             )
 
-        if not self.client or self.errors:
+        if not self.pair_task and (not self.client or self.errors):
             host = user_input[CONF_HOST]
             self.client = NoStoreClient(host)
 
         if not self.pair_task:
             self.pair_task = self.hass.async_create_task(
-                validate_input(self.hass, user_input, self.client)
+                self.validate_input(user_input)
             )
             return self.async_show_progress(
                 step_id="user",
@@ -107,6 +75,43 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         self.data = info
         return self.async_show_progress_done(next_step_id="finish")
+
+    async def validate_input(self, data: dict[str, Any]) -> dict[str, Any]:
+        """Validate the user input allows us to connect.
+
+        Data has the keys from STEP_USER_DATA_SCHEMA with values provided by the user.
+        """
+        try:
+            async with timeout(PAIR_TIMEOUT):
+                await self.client.connect()
+                await self.client.disconnect()
+        except PyLGTVPairException:
+            _LOGGER.warning(
+                "Connected to LG webOS TV %s but not paired", self.client.ip
+            )
+            raise InvalidAuth
+        except (
+            OSError,
+            ConnectionClosed,
+            ConnectionRefusedError,
+            asyncio.TimeoutError,
+            PyLGTVCmdException,
+        ):
+            _LOGGER.error("Unable to connect to host %s", self.client.ip)
+            raise CannotConnect
+        finally:
+            # Continue the flow after show progress when the task is done.
+            self.hass.async_create_task(
+                self.hass.config_entries.flow.async_configure(
+                    flow_id=self.flow_id, user_input={}
+                )
+            )
+
+        # Return info that you want to store in the config entry.
+        return {
+            **data,
+            CONF_CLIENT_KEY: self.client.client_key,
+        }
 
     async def async_step_pair_failed(
         self, user_input: dict[str, Any] | None = None
