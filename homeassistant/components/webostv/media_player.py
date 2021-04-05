@@ -1,4 +1,6 @@
 """Support for interface with an LG webOS Smart TV."""
+from __future__ import annotations
+
 import asyncio
 from contextlib import suppress
 from datetime import timedelta
@@ -28,6 +30,7 @@ from homeassistant.components.media_player.const import (
 from homeassistant.components.webostv.const import (
     ATTR_PAYLOAD,
     ATTR_SOUND_OUTPUT,
+    CONF_ON_ACTION,
     CONF_SOURCES,
     DEFAULT_NAME,
     DOMAIN,
@@ -36,6 +39,7 @@ from homeassistant.components.webostv.const import (
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (
     ATTR_ENTITY_ID,
+    CONF_CUSTOMIZE,
     CONF_NAME,
     ENTITY_MATCH_ALL,
     ENTITY_MATCH_NONE,
@@ -44,6 +48,7 @@ from homeassistant.const import (
 )
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
+from homeassistant.helpers.script import Script
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -70,7 +75,11 @@ async def async_setup_entry(
     """Set up the LG webOS Smart TV media player."""
     client = hass.data[DOMAIN][entry.entry_id]
     name = entry.data.get(CONF_NAME, DEFAULT_NAME)
-    entity = LgWebOSMediaPlayerEntity(client, name)
+    customize = entry.data.get(CONF_CUSTOMIZE, {CONF_SOURCES: []})
+    turn_on_action = entry.data.get(CONF_ON_ACTION)
+    on_script = Script(hass, turn_on_action, name, DOMAIN) if turn_on_action else None
+
+    entity = LgWebOSMediaPlayerEntity(client, name, customize, on_script=on_script)
 
     async_add_entities([entity], update_before_add=False)
 
@@ -107,19 +116,25 @@ def cmd(func):
 class LgWebOSMediaPlayerEntity(MediaPlayerEntity):
     """Representation of a LG webOS Smart TV."""
 
-    def __init__(self, client: WebOsClient, name: str):
+    def __init__(
+        self,
+        client: WebOsClient,
+        name: str,
+        customize: dict[str, list[str]],
+        on_script: Script | None = None,
+    ) -> None:
         """Initialize the webos device."""
         self._client = client
         self._name = name
         self._unique_id = client.client_key
-        self._customize = {CONF_SOURCES: []}
-        self._on_script = None
+        self._customize = customize
+        self._on_script = on_script
 
         # Assume that the TV is not paused
         self._paused = False
 
         self._current_source = None
-        self._source_list = {}
+        self._source_list: dict[str, dict] = {}
 
     async def async_added_to_hass(self):
         """Connect and subscribe to dispatcher signals and state updates."""
