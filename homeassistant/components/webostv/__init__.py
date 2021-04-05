@@ -154,6 +154,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             "notify",
             DOMAIN,
             {
+                CONF_ICON: entry.data.get(CONF_ICON),
                 CONF_NAME: entry.data.get(CONF_NAME, DEFAULT_NAME),
                 "entry_id": entry.entry_id,
             },
