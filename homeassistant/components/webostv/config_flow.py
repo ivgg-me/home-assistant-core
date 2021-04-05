@@ -11,18 +11,16 @@ import voluptuous as vol
 from websockets.exceptions import ConnectionClosed
 
 from homeassistant import config_entries
-from homeassistant.const import CONF_HOST, CONF_NAME
+from homeassistant.const import CONF_HOST
 from homeassistant.exceptions import HomeAssistantError
 
 from . import NoStoreClient, convert_client_keys
-from .const import CONF_CLIENT_KEY, DEFAULT_NAME, DOMAIN, WEBOSTV_CONFIG_FILE
+from .const import CONF_CLIENT_KEY, DOMAIN, WEBOSTV_CONFIG_FILE
 
 _LOGGER = logging.getLogger(__name__)
 
 PAIR_TIMEOUT = 60
-STEP_USER_DATA_SCHEMA = vol.Schema(
-    {vol.Required(CONF_HOST): str, vol.Optional(CONF_NAME, default=DEFAULT_NAME): str}
-)
+STEP_USER_DATA_SCHEMA = vol.Schema({vol.Required(CONF_HOST): str})
 
 
 class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -73,7 +71,9 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         if self.errors:
             return self.async_show_progress_done(next_step_id="pair_failed")
 
-        self.data = info
+        if self.data is None:
+            self.data = {}
+        self.data.update(info)
         return self.async_show_progress_done(next_step_id="finish")
 
     async def validate_input(self, data: dict[str, Any]) -> dict[str, Any]:
@@ -125,7 +125,7 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         """Finish the config flow."""
         await self.async_set_unique_id(self.data[CONF_CLIENT_KEY])
         self._abort_if_unique_id_configured()
-        return self.async_create_entry(title=self.data[CONF_NAME], data=self.data)
+        return self.async_create_entry(title=self.data[CONF_HOST], data=self.data)
 
     async def async_step_import(
         self, user_input: dict[str, Any] | None = None
@@ -140,13 +140,9 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         await self.client.async_init()
         await self.async_set_unique_id(self.client.client_key)
         self._abort_if_unique_id_configured()
+        self.data = user_input
 
-        return await self.async_step_user(
-            user_input={
-                CONF_HOST: host,
-                CONF_NAME: user_input[CONF_NAME],
-            }
-        )
+        return await self.async_step_user(user_input={CONF_HOST: host})
 
 
 class CannotConnect(HomeAssistantError):
