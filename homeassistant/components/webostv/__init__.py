@@ -22,10 +22,11 @@ from homeassistant.const import (
     CONF_NAME,
     EVENT_HOMEASSISTANT_STOP,
 )
-from homeassistant.core import HomeAssistant
+from homeassistant.core import Event, HomeAssistant, ServiceCall
 import homeassistant.helpers.config_validation as cv
 from homeassistant.helpers.discovery import async_load_platform
 from homeassistant.helpers.dispatcher import async_dispatcher_send
+from homeassistant.helpers.typing import ConfigType
 
 from .const import (
     ATTR_BUTTON,
@@ -90,7 +91,7 @@ PLATFORMS = ["media_player"]
 DATA_HASS_CONFIG = f"{DOMAIN}_hass_config"
 
 
-async def async_setup(hass, config):
+async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     """Set up the LG WebOS TV platform."""
     hass.data[DATA_HASS_CONFIG] = config
 
@@ -113,8 +114,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up LG webOS Smart TV from a config entry."""
     if DOMAIN not in hass.data:
 
-        async def async_service_handler(service):
-            method = SERVICE_TO_METHOD.get(service.service)
+        async def async_service_handler(service: ServiceCall) -> None:
+            method = SERVICE_TO_METHOD[service.service]
             data = service.data.copy()
             data["method"] = method["method"]
             async_dispatcher_send(hass, DOMAIN, data)
@@ -132,7 +133,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = client
 
-    async def async_on_stop(event):
+    async def async_on_stop(event: Event) -> None:
         """Unregister callbacks and disconnect."""
         client.clear_state_update_callbacks()
         await client.disconnect()
@@ -185,7 +186,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     return unload_ok
 
 
-def convert_client_keys(config_file):
+def convert_client_keys(config_file: str) -> None:
     """In case the config file contains JSON, convert it to a Sqlite config file."""
     # Return early if config file is non-existing
     if not os.path.isfile(config_file):
@@ -212,7 +213,7 @@ def convert_client_keys(config_file):
             conf.commit()
 
 
-async def async_connect(client):
+async def async_connect(client: WebOsClient) -> None:
     """Attempt a connection, but fail gracefully if tv is off for example."""
     with suppress(
         OSError,
@@ -226,7 +227,7 @@ async def async_connect(client):
         await client.connect()
 
 
-class NoStoreClient(WebOsClient):
+class NoStoreClient(WebOsClient):  # type: ignore
     """Remove the client key sqlite client storage."""
 
     def write_client_key(self) -> None:

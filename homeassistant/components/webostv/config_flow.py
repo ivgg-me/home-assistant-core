@@ -5,7 +5,7 @@ import asyncio
 import logging
 from typing import Any
 
-from aiopylgtv.webos_client import PyLGTVCmdException, PyLGTVPairException
+from aiopylgtv.webos_client import PyLGTVCmdException, PyLGTVPairException, WebOsClient
 from async_timeout import timeout
 import voluptuous as vol
 from websockets.exceptions import ConnectionClosed
@@ -28,9 +28,13 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     VERSION = 1
     CONNECTION_CLASS = config_entries.CONN_CLASS_LOCAL_PUSH
-    data: dict | None = None
+    client: WebOsClient | None = None
     errors: dict | None = None
     pair_task: asyncio.Task | None = None
+
+    def __init__(self) -> None:
+        """Set up flow."""
+        self.data: dict[str, Any] = {}
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
@@ -71,8 +75,6 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         if self.errors:
             return self.async_show_progress_done(next_step_id="pair_failed")
 
-        if self.data is None:
-            self.data = {}
         self.data.update(info)
         return self.async_show_progress_done(next_step_id="finish")
 
@@ -81,6 +83,7 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         Data has the keys from STEP_USER_DATA_SCHEMA with values provided by the user.
         """
+        assert self.client
         try:
             async with timeout(PAIR_TIMEOUT):
                 await self.client.connect()
@@ -127,9 +130,7 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self._abort_if_unique_id_configured()
         return self.async_create_entry(title=self.data[CONF_HOST], data=self.data)
 
-    async def async_step_import(
-        self, user_input: dict[str, Any] | None = None
-    ) -> dict[str, Any]:
+    async def async_step_import(self, user_input: dict[str, Any]) -> dict[str, Any]:
         """Import legacy configuration."""
         host = user_input[CONF_HOST]
         config_file = self.hass.config.path(WEBOSTV_CONFIG_FILE)
