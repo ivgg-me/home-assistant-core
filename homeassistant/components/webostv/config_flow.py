@@ -123,6 +123,8 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self, user_input: dict[str, Any] | None = None
     ) -> dict[str, Any]:
         """Finish the config flow."""
+        await self.async_set_unique_id(self.data[CONF_CLIENT_KEY])
+        self._abort_if_unique_id_configured()
         return self.async_create_entry(title=self.data[CONF_NAME], data=self.data)
 
     async def async_step_import(
@@ -136,6 +138,8 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         self.client = NoStoreClient(host, key_file_path=config_file)
         await self.client.async_init()
+        await self.async_set_unique_id(self.client.client_key)
+        self._abort_if_unique_id_configured()
 
         return await self.async_step_user(
             user_input={
