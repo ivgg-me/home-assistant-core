@@ -29,6 +29,7 @@ from homeassistant.components.webostv.const import (
     ATTR_PAYLOAD,
     ATTR_SOUND_OUTPUT,
     CONF_SOURCES,
+    DEFAULT_NAME,
     DOMAIN,
     LIVE_TV_APP_ID,
 )
@@ -68,7 +69,7 @@ async def async_setup_entry(
 ) -> None:
     """Set up the LG webOS Smart TV media player."""
     client = hass.data[DOMAIN][entry.entry_id]
-    name = entry.data[CONF_NAME]
+    name = entry.data.get(CONF_NAME, DEFAULT_NAME)
     entity = LgWebOSMediaPlayerEntity(client, name)
 
     async_add_entities([entity], update_before_add=False)
