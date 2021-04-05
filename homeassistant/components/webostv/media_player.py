@@ -4,6 +4,7 @@ from contextlib import suppress
 from datetime import timedelta
 from functools import wraps
 import logging
+from typing import Callable
 
 from aiopylgtv import PyLGTVCmdException, PyLGTVPairException, WebOsClient
 from websockets.exceptions import ConnectionClosed
@@ -27,23 +28,21 @@ from homeassistant.components.media_player.const import (
 from homeassistant.components.webostv.const import (
     ATTR_PAYLOAD,
     ATTR_SOUND_OUTPUT,
-    CONF_ON_ACTION,
     CONF_SOURCES,
     DOMAIN,
     LIVE_TV_APP_ID,
 )
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (
     ATTR_ENTITY_ID,
-    CONF_CUSTOMIZE,
-    CONF_HOST,
     CONF_NAME,
     ENTITY_MATCH_ALL,
     ENTITY_MATCH_NONE,
     STATE_OFF,
     STATE_ON,
 )
+from homeassistant.core import HomeAssistant
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
-from homeassistant.helpers.script import Script
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -64,21 +63,13 @@ MIN_TIME_BETWEEN_FORCED_SCANS = timedelta(seconds=1)
 SCAN_INTERVAL = timedelta(seconds=10)
 
 
-async def async_setup_platform(hass, config, async_add_entities, discovery_info=None):
-    """Set up the LG webOS Smart TV platform."""
-
-    if discovery_info is None:
-        return
-
-    host = discovery_info[CONF_HOST]
-    name = discovery_info[CONF_NAME]
-    customize = discovery_info[CONF_CUSTOMIZE]
-    turn_on_action = discovery_info.get(CONF_ON_ACTION)
-
-    client = hass.data[DOMAIN][host]["client"]
-    on_script = Script(hass, turn_on_action, name, DOMAIN) if turn_on_action else None
-
-    entity = LgWebOSMediaPlayerEntity(client, name, customize, on_script)
+async def async_setup_entry(
+    hass: HomeAssistant, entry: ConfigEntry, async_add_entities: Callable
+) -> None:
+    """Set up the LG webOS Smart TV media player."""
+    client = hass.data[DOMAIN][entry.entry_id]
+    name = entry.data[CONF_NAME]
+    entity = LgWebOSMediaPlayerEntity(client, name)
 
     async_add_entities([entity], update_before_add=False)
 
@@ -115,13 +106,13 @@ def cmd(func):
 class LgWebOSMediaPlayerEntity(MediaPlayerEntity):
     """Representation of a LG webOS Smart TV."""
 
-    def __init__(self, client: WebOsClient, name: str, customize, on_script=None):
+    def __init__(self, client: WebOsClient, name: str):
         """Initialize the webos device."""
         self._client = client
         self._name = name
         self._unique_id = client.client_key
-        self._customize = customize
-        self._on_script = on_script
+        self._customize = {CONF_SOURCES: []}
+        self._on_script = None
 
         # Assume that the TV is not paused
         self._paused = False
