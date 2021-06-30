@@ -8,7 +8,6 @@ import transmissionrpc
 from transmissionrpc.error import TransmissionError
 import voluptuous as vol
 
-from homeassistant.config_entries import SOURCE_IMPORT
 from homeassistant.const import (
     CONF_HOST,
     CONF_ID,
@@ -90,25 +89,9 @@ TRANS_SCHEMA = vol.All(
     )
 )
 
-CONFIG_SCHEMA = vol.Schema(
-    vol.All(cv.deprecated(DOMAIN), {DOMAIN: vol.All(cv.ensure_list, [TRANS_SCHEMA])}),
-    extra=vol.ALLOW_EXTRA,
-)
+CONFIG_SCHEMA = cv.deprecated(DOMAIN)
 
 PLATFORMS = ["sensor", "switch"]
-
-
-async def async_setup(hass, config):
-    """Import the Transmission Component from config."""
-    if DOMAIN in config:
-        for entry in config[DOMAIN]:
-            hass.async_create_task(
-                hass.config_entries.flow.async_init(
-                    DOMAIN, context={"source": SOURCE_IMPORT}, data=entry
-                )
-            )
-
-    return True
 
 
 async def async_setup_entry(hass, config_entry):
@@ -116,10 +99,7 @@ async def async_setup_entry(hass, config_entry):
     client = TransmissionClient(hass, config_entry)
     hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = client
 
-    if not await client.async_setup():
-        return False
-
-    return True
+    return await client.async_setup()
 
 
 async def async_unload_entry(hass, config_entry):
