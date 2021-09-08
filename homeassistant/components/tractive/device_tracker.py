@@ -25,6 +25,9 @@ async def async_setup_entry(hass, entry, async_add_entities):
 
     trackables = await client.trackable_objects()
 
+    for trackable in trackables:
+        _LOGGER.error("Trackables %s", (await trackable.details())["device_id"])
+
     entities = await asyncio.gather(
         *(create_trackable_entity(client, trackable) for trackable in trackables)
     )
