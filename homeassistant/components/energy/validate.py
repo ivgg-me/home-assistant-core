@@ -180,9 +180,16 @@ def _async_validate_cost_stat(
 
 @callback
 def _async_validate_cost_entity(
-    hass: HomeAssistant, entity_id: str, result: list[ValidationIssue]
+    hass: HomeAssistant,
+    usage_stat_id: str,
+    entity_id: str | None,
+    result: list[ValidationIssue],
 ) -> None:
     """Validate that the cost entity is correct."""
+    if entity_id is None:
+        result.append(ValidationIssue("cost_sensor_not_found", "", usage_stat_id))
+        return
+
     if not recorder.is_entity_recorded(hass, entity_id):
         result.append(
             ValidationIssue(
@@ -225,6 +232,8 @@ async def async_validate(hass: HomeAssistant) -> EnergyPreferencesValidation:
     if manager.data is None:
         return result
 
+    cost_sensor_entity_ids = hass.data[DOMAIN]["cost_sensors"]
+
     for source in manager.data["energy_sources"]:
         source_result: list[ValidationIssue] = []
         result.energy_sources.append(source_result)
@@ -248,7 +257,8 @@ async def async_validate(hass: HomeAssistant) -> EnergyPreferencesValidation:
                     )
                     _async_validate_cost_entity(
                         hass,
-                        hass.data[DOMAIN]["cost_sensors"][flow["stat_energy_from"]],
+                        flow["stat_energy_from"],
+                        cost_sensor_entity_ids.get(flow["stat_energy_from"]),
                         source_result,
                     )
 
@@ -272,7 +282,8 @@ async def async_validate(hass: HomeAssistant) -> EnergyPreferencesValidation:
                     )
                     _async_validate_cost_entity(
                         hass,
-                        hass.data[DOMAIN]["cost_sensors"][flow["stat_energy_to"]],
+                        flow["stat_energy_to"],
+                        cost_sensor_entity_ids.get(flow["stat_energy_to"]),
                         source_result,
                     )
 
@@ -294,7 +305,8 @@ async def async_validate(hass: HomeAssistant) -> EnergyPreferencesValidation:
                 )
                 _async_validate_cost_entity(
                     hass,
-                    hass.data[DOMAIN]["cost_sensors"][source["stat_energy_from"]],
+                    source["stat_energy_from"],
+                    cost_sensor_entity_ids.get(source["stat_energy_from"]),
                     source_result,
                 )
 
