@@ -25,7 +25,7 @@ import homeassistant.helpers.config_validation as cv
 from homeassistant.helpers.config_validation import PLATFORM_SCHEMA
 from homeassistant.helpers.entity import async_generate_entity_id
 
-from .template_entity import TemplateEntity
+from .template_entity import TemplateEntity, rewrite_common_legacy_to_modern_conf
 
 CONDITION_CLASSES = {
     ATTR_CONDITION_CLEAR_NIGHT,
@@ -78,6 +78,7 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
 async def async_setup_platform(hass, config, async_add_entities, discovery_info=None):
     """Set up the Template weather."""
 
+    config = rewrite_common_legacy_to_modern_conf(config)
     unique_id = config.get(CONF_UNIQUE_ID)
 
     async_add_entities(
@@ -101,9 +102,9 @@ class WeatherTemplate(TemplateEntity, WeatherEntity):
         unique_id,
     ):
         """Initialize the Template weather."""
-        super().__init__(config=config)
+        super().__init__(hass, config=config)
 
-        self._name = name = config[CONF_NAME]
+        name = self._attr_name
         self._condition_template = config[CONF_CONDITION_TEMPLATE]
         self._temperature_template = config[CONF_TEMPERATURE_TEMPLATE]
         self._humidity_template = config[CONF_HUMIDITY_TEMPLATE]
@@ -128,11 +129,6 @@ class WeatherTemplate(TemplateEntity, WeatherEntity):
         self._ozone = None
         self._visibility = None
         self._forecast = []
-
-    @property
-    def name(self):
-        """Return the name of the sensor."""
-        return self._name
 
     @property
     def condition(self):
