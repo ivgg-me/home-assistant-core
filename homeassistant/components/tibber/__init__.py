@@ -9,7 +9,6 @@ from homeassistant.const import CONF_ACCESS_TOKEN, CONF_NAME, EVENT_HOMEASSISTAN
 from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers import discovery
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
-import homeassistant.helpers.config_validation as cv
 from homeassistant.util import dt as dt_util
 
 from .const import DATA_HASS_CONFIG, DOMAIN
@@ -17,8 +16,6 @@ from .const import DATA_HASS_CONFIG, DOMAIN
 PLATFORMS = [
     "sensor",
 ]
-
-CONFIG_SCHEMA = cv.deprecated(DOMAIN)
 
 _LOGGER = logging.getLogger(__name__)
 
