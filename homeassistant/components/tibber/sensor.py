@@ -8,6 +8,11 @@ from random import randrange
 
 import aiohttp
 
+from homeassistant.components.recorder.models import StatisticData, StatisticMetaData
+from homeassistant.components.recorder.statistics import (
+    async_add_external_statistics,
+    get_last_statistics,
+)
 from homeassistant.components.sensor import (
     SensorDeviceClass,
     SensorEntity,
@@ -18,7 +23,6 @@ from homeassistant.const import (
     ELECTRIC_CURRENT_AMPERE,
     ELECTRIC_POTENTIAL_VOLT,
     ENERGY_KILO_WATT_HOUR,
-    ENTITY_CATEGORY_DIAGNOSTIC,
     EVENT_HOMEASSISTANT_STOP,
     PERCENTAGE,
     POWER_WATT,
@@ -28,8 +32,9 @@ from homeassistant.core import callback
 from homeassistant.exceptions import PlatformNotReady
 from homeassistant.helpers import update_coordinator
 from homeassistant.helpers.device_registry import async_get as async_get_dev_reg
-from homeassistant.helpers.entity import DeviceInfo
+from homeassistant.helpers.entity import DeviceInfo, EntityCategory
 from homeassistant.helpers.entity_registry import async_get as async_get_entity_reg
+from homeassistant.helpers.event import async_track_time_change
 from homeassistant.util import Throttle, dt as dt_util
 
 from .const import DOMAIN as TIBBER_DOMAIN, MANUFACTURER
@@ -165,7 +170,7 @@ RT_SENSORS: tuple[SensorEntityDescription, ...] = (
         device_class=SensorDeviceClass.SIGNAL_STRENGTH,
         native_unit_of_measurement=SIGNAL_STRENGTH_DECIBELS,
         state_class=SensorStateClass.MEASUREMENT,
-        entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+        entity_category=EntityCategory.DIAGNOSTIC,
     ),
     SensorEntityDescription(
         key="accumulatedReward",
@@ -215,6 +220,15 @@ async def async_setup_entry(hass, entry, async_add_entities):
                 TibberRtDataCoordinator(
                     async_add_entities, home, hass
                 ).async_set_updated_data
+            )
+        if home.has_active_subscription:  # and not home.has_real_time_consumption:
+            await _insert_statistics(hass, home)
+
+            async def _hourly_insert_statistics(_):
+                await _insert_statistics(hass, home)
+
+            async_track_time_change(
+                hass, _hourly_insert_statistics, minute=1, second=randrange(0, 59)
             )
 
         # migrate
@@ -442,3 +456,56 @@ class TibberRtDataCoordinator(update_coordinator.DataUpdateCoordinator):
             _LOGGER.error(errors[0])
             return None
         return self.data.get("data", {}).get("liveMeasurement")
+
+
+async def _insert_statistics(hass, home):
+    """Insert Tibber statistics."""
+    statistic_id = (
+        f"{TIBBER_DOMAIN}:9_{home.home_id.replace('-', '')}_energy_consumption"
+    )
+    print(statistic_id)
+
+    last_stats = await hass.async_add_executor_job(
+        get_last_statistics, hass, 1, statistic_id, True
+    )
+
+    if not last_stats:
+        historic_data = await home.get_historic_data(24 * 365 * 5)
+        _sum = 0
+    else:
+        _prev_date = dt_util.parse_datetime(last_stats[statistic_id][0]["end"])
+        hour_ago = (dt_util.now() - _prev_date).total_seconds() / 3600
+        if hour_ago < 1:
+            return
+        historic_data = await home.get_historic_data(int(hour_ago))
+        _sum = last_stats[statistic_id][0]["sum"]
+
+    if not historic_data:
+        return
+
+    statistics = []
+
+    for data in historic_data:
+        if data.get("consumption") is None:
+            continue
+
+        _sum += data["consumption"]
+
+        statistics.append(
+            StatisticData(
+                start=dt_util.parse_datetime(data["from"]),
+                state=data["consumption"],
+                sum=_sum,
+            )
+        )
+
+    metadata = StatisticMetaData(
+        has_mean=False,
+        has_sum=True,
+        name=f'{home.info["viewer"]["home"]["appNickname"]} Consumption',
+        source=TIBBER_DOMAIN,
+        statistic_id=statistic_id,
+        unit_of_measurement=ENERGY_KILO_WATT_HOUR,
+    )
+
+    async_add_external_statistics(hass, metadata, statistics)
