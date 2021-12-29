@@ -108,7 +108,7 @@ class KNXExposeSensor:
         try:
             self.device.sensor_value.value = state_value
         except ConversionError:
-            _LOGGER.exception("Error during sending of expose sensor value.")
+            _LOGGER.exception("Error during sending of expose sensor value")
 
     @callback
     def shutdown(self) -> None:
@@ -163,7 +163,7 @@ class KNXExposeSensor:
         try:
             await self.device.set(value)
         except ConversionError:
-            _LOGGER.exception("Error during sending of expose sensor value.")
+            _LOGGER.exception("Error during sending of expose sensor value")
 
 
 class KNXExposeTime:
