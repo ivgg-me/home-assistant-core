@@ -132,6 +132,9 @@ class KNXExposeSensor:
             and issubclass(self.device.sensor_value.dpt_class, DPTNumeric)
         ):
             return float(value)
+        if self.type == "string":
+            # DPT 16.000 only allows up to 14 Bytes
+            return str(value)[:14]
         return value
 
     async def _async_entity_changed(self, event: Event) -> None:
