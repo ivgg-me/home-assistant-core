@@ -22,9 +22,15 @@ TEST_MESSAGE_HEADERS2 = (
     b"To: notify@example.com\r\n"
     b"From: John Doe <john.doe@example.com>\r\n"
     b"Subject: Test subject\r\n"
+    b"Message-ID: <N753P9hLvLw3lYGan11ji9WggPjxtLSpKvFOYgdnE@example.com>"
 )
 
+TEST_MESSAGE_HEADERS3 = b""
+
 TEST_MESSAGE = TEST_MESSAGE_HEADERS1 + DATE_HEADER1 + TEST_MESSAGE_HEADERS2
+TEST_MESSAGE_NO_SUBJECT_TO_FROM = (
+    TEST_MESSAGE_HEADERS1 + DATE_HEADER1 + TEST_MESSAGE_HEADERS3
+)
 TEST_MESSAGE_ALT = TEST_MESSAGE_HEADERS1 + DATE_HEADER2 + TEST_MESSAGE_HEADERS2
 TEST_INVALID_DATE1 = (
     TEST_MESSAGE_HEADERS1 + DATE_HEADER_INVALID1 + TEST_MESSAGE_HEADERS2
@@ -36,7 +42,7 @@ TEST_INVALID_DATE3 = (
     TEST_MESSAGE_HEADERS1 + DATE_HEADER_INVALID3 + TEST_MESSAGE_HEADERS2
 )
 
-TEST_CONTENT_TEXT_BARE = b"\r\n" b"Test body\r\n" b"\r\n"
+TEST_CONTENT_TEXT_BARE = b"\r\nTest body\r\n\r\n"
 
 TEST_CONTENT_BINARY = (
     b"Content-Type: application/binary\r\n"
@@ -199,6 +205,21 @@ TEST_FETCH_RESPONSE_MULTIPART = (
         + str(len(TEST_MESSAGE + TEST_CONTENT_MULTIPART)).encode("utf-8")
         + b"}",
         bytearray(TEST_MESSAGE + TEST_CONTENT_MULTIPART),
+        b")",
+        b"Fetch completed (0.0001 + 0.000 secs).",
+    ],
+)
+
+
+TEST_FETCH_RESPONSE_NO_SUBJECT_TO_FROM = (
+    "OK",
+    [
+        b"1 FETCH (BODY[] {"
+        + str(len(TEST_MESSAGE_NO_SUBJECT_TO_FROM + TEST_CONTENT_TEXT_PLAIN)).encode(
+            "utf-8"
+        )
+        + b"}",
+        bytearray(TEST_MESSAGE_NO_SUBJECT_TO_FROM + TEST_CONTENT_TEXT_PLAIN),
         b")",
         b"Fetch completed (0.0001 + 0.000 secs).",
     ],
